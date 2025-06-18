@@ -4,15 +4,23 @@
   "scripts": {
     "res:build": "rescript",
     "res:clean": "rescript clean",
-    "res:dev": "rescript -w"
+    "res:dev": "rescript -w",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "keywords": [
     "rescript"
   ],
   "author": "",
   "license": "MIT",
-  "dependencies": {
+  "devDependencies": {
     "@rescript/core": "^1.6.1",
     "rescript": "^11.1.4"
+  },
+  "dependencies": {
+    "@jihchi/vite-plugin-rescript": "^7.0.0",
+    "rescript-webapi": "^0.10.0",
+    "vite": "^6.3.5"
   }
 }
