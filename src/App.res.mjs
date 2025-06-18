@@ -8,20 +8,39 @@ import * as Caml_option from "rescript/lib/es6/caml_option.js";
 import * as Webapi__Fetch from "rescript-webapi/src/Webapi/Webapi__Fetch.res.mjs";
 
 function decodeBlock(json) {
-  var dict = Belt_Option.getExn(Js_json.decodeObject(json));
-  return {
-          canonical: Belt_Option.getWithDefault(Js_json.decodeBoolean(Belt_Option.getExn(Js_dict.get(dict, "canonical"))), false),
-          blockHeight: Belt_Option.getExn(Js_json.decodeNumber(Belt_Option.getExn(Js_dict.get(dict, "blockHeight")))) | 0,
-          stateHash: Belt_Option.getExn(Js_json.decodeString(Belt_Option.getExn(Js_dict.get(dict, "stateHash")))),
-          coinbaseReceiverUsername: Belt_Option.flatMap(Js_dict.get(dict, "coinbaseReceiverUsername"), Js_json.decodeString),
-          snarkFees: Belt_Option.getExn(Js_json.decodeString(Belt_Option.getExn(Js_dict.get(dict, "snarkFees"))))
-        };
+  var dict = Js_json.decodeObject(json);
+  if (dict !== undefined) {
+    return {
+            canonical: Belt_Option.getWithDefault(Belt_Option.flatMap(Js_dict.get(dict, "canonical"), Js_json.decodeBoolean), false),
+            blockHeight: Belt_Option.getWithDefault(Belt_Option.map(Belt_Option.flatMap(Js_dict.get(dict, "blockHeight"), Js_json.decodeNumber), (function (prim) {
+                        return prim | 0;
+                      })), 0),
+            stateHash: Belt_Option.getWithDefault(Belt_Option.flatMap(Js_dict.get(dict, "stateHash"), Js_json.decodeString), ""),
+            coinbaseReceiverUsername: Belt_Option.flatMap(Js_dict.get(dict, "coinbaseReceiverUsername"), Js_json.decodeString),
+            snarkFees: Belt_Option.getWithDefault(Belt_Option.flatMap(Js_dict.get(dict, "snarkFees"), Js_json.decodeString), "0")
+          };
+  } else {
+    return {
+            canonical: false,
+            blockHeight: 0,
+            stateHash: "",
+            coinbaseReceiverUsername: undefined,
+            snarkFees: "0"
+          };
+  }
 }
 
 function decodeBlocks(json) {
-  var data = Belt_Option.getExn(Js_json.decodeObject(json));
-  var blocks = Belt_Option.getExn(Js_json.decodeObject(Belt_Option.getExn(Js_dict.get(data, "data"))));
-  return Belt_Array.map(Belt_Option.getExn(Js_json.decodeArray(Belt_Option.getExn(Js_dict.get(blocks, "blocks")))), decodeBlock);
+  var blocks = Belt_Option.flatMap(Belt_Option.flatMap(Belt_Option.flatMap(Belt_Option.flatMap(Js_json.decodeObject(json), (function (dict) {
+                      return Js_dict.get(dict, "data");
+                    })), Js_json.decodeObject), (function (dict) {
+              return Js_dict.get(dict, "blocks");
+            })), Js_json.decodeArray);
+  if (blocks !== undefined) {
+    return Belt_Array.map(blocks, decodeBlock);
+  } else {
+    return [];
+  }
 }
 
 async function fetchData() {
@@ -60,8 +79,11 @@ async function main() {
     console.error("Error: Element with id 'app' not found");
     return ;
   }
+  container.innerHTML = "<div class=\"container mx-auto p-4\">\n         <h1 class=\"text-3xl font-bold text-blue-600 mb-4\">Mina Blockchain Blocks</h1>\n         <p class=\"text-gray-600\">Loading...</p>\n       </div>";
   var blocks = await fetchData();
-  container.innerHTML = "<div class=\"container mx-auto p-4\">\n         <h1 class=\"text-3xl font-bold text-blue-600 mb-4\">Mina Blockchain Blocks</h1>\n         <ul>" + renderBlocks(blocks) + "</ul>\n       </div>";
+  container.innerHTML = "<div class=\"container mx-auto p-4\">\n         <h1 class=\"text-3xl font-bold text-blue-600 mb-4\">Mina Blockchain Blocks</h1>\n         " + (
+    blocks.length === 0 ? "<p class=\"text-red-600\">Failed to load blocks</p>" : "<ul>" + renderBlocks(blocks) + "</ul>"
+  ) + "\n       </div>";
 }
 
 function handleDOMContentLoaded(_event) {

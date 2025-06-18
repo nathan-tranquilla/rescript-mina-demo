@@ -1,7 +1,6 @@
 open Webapi.Dom
 open Webapi.Fetch
 
-
 // Type for a block from the Mina GraphQL API
 type block = {
   canonical: bool,
@@ -12,52 +11,37 @@ type block = {
 }
 
 // Decode a single block from JSON
-let decodeBlock = (json: Js.Json.t): block => {
+let decodeBlock = json => {
   open Js.Json
-  let dict = json->decodeObject->Belt.Option.getExn
-  {
-    canonical: dict
-      ->Js.Dict.get("canonical")
-      ->Belt.Option.getExn
-      ->decodeBoolean
-      ->Belt.Option.getWithDefault(false),
-    blockHeight: dict
-      ->Js.Dict.get("blockHeight")
-      ->Belt.Option.getExn
-      ->decodeNumber
-      ->Belt.Option.getExn
-      ->Belt.Float.toInt,
-    stateHash: dict
-      ->Js.Dict.get("stateHash")
-      ->Belt.Option.getExn
-      ->decodeString
-      ->Belt.Option.getExn,
-    coinbaseReceiverUsername: dict
-      ->Js.Dict.get("coinbaseReceiverUsername")
-      ->Belt.Option.flatMap(decodeString),
-    snarkFees: dict
-      ->Js.Dict.get("snarkFees")
-      ->Belt.Option.getExn
-      ->decodeString
-      ->Belt.Option.getExn,
+  open Js.Dict
+  open Belt.Option
+  switch json->decodeObject {
+  | Some(dict) => {
+      canonical: dict->get("canonical")->flatMap(decodeBoolean)->getWithDefault(false),
+      blockHeight: dict->get("blockHeight")->flatMap(decodeNumber)->map(Belt.Float.toInt)->getWithDefault(0),
+      stateHash: dict->get("stateHash")->flatMap(decodeString)->getWithDefault(""),
+      coinbaseReceiverUsername: dict->get("coinbaseReceiverUsername")->flatMap(decodeString),
+      snarkFees: dict->get("snarkFees")->flatMap(decodeString)->getWithDefault("0"),
+    }
+  | None => {
+      canonical: false,
+      blockHeight: 0,
+      stateHash: "",
+      coinbaseReceiverUsername: None,
+      snarkFees: "0",
+    }
   }
 }
 
 // Decode the GraphQL response (data.blocks)
-let decodeBlocks = (json: Js.Json.t): array<block> => {
+let decodeBlocks = json => {
   open Js.Json
-  let data = json->decodeObject->Belt.Option.getExn
-  let blocks = data
-    ->Js.Dict.get("data")
-    ->Belt.Option.getExn
-    ->decodeObject
-    ->Belt.Option.getExn
-  blocks
-    ->Js.Dict.get("blocks")
-    ->Belt.Option.getExn
-    ->decodeArray
-    ->Belt.Option.getExn
-    ->Belt.Array.map(decodeBlock)
+  open Js.Dict
+  open Belt.Option
+  switch json->decodeObject->flatMap(dict => dict->get("data"))->flatMap(decodeObject)->flatMap(dict => dict->get("blocks"))->flatMap(decodeArray) {
+  | Some(blocks) => blocks->Belt.Array.map(decodeBlock)
+  | None => []
+  }
 }
 
 let fetchData = async () => {
@@ -97,8 +81,9 @@ let fetchData = async () => {
 }
 
 let renderBlocks = (blocks: array<block>): string => {
+  open Belt.Array
   blocks
-  ->Belt.Array.map(block =>
+  ->map(block =>
     `<li class="mb-4 p-4 bg-gray-100 rounded-lg">
        <h2 class="text-xl font-semibold text-blue-600">Block ${block.blockHeight->Belt.Int.toString}</h2>
        <p class="text-gray-600"><strong>State Hash:</strong> ${block.stateHash}</p>
@@ -110,18 +95,29 @@ let renderBlocks = (blocks: array<block>): string => {
        <p class="text-gray-600"><strong>Snark Fees:</strong> ${block.snarkFees}</p>
      </li>`
   )
-  ->Belt.Array.joinWith("", x => x)
+  ->joinWith("", x => x)
 }
 
 let main = async () => {
   switch document->Document.getElementById("app") {
   | Some(container) =>
-    let blocks = await fetchData()
+    // Show loading state
     Element.setInnerHTML(
       container,
       `<div class="container mx-auto p-4">
          <h1 class="text-3xl font-bold text-blue-600 mb-4">Mina Blockchain Blocks</h1>
-         <ul>${renderBlocks(blocks)}</ul>
+         <p class="text-gray-600">Loading...</p>
+       </div>`,
+    )
+    let blocks = await fetchData()
+    // Render blocks or error
+    Element.setInnerHTML(
+      container,
+      `<div class="container mx-auto p-4">
+         <h1 class="text-3xl font-bold text-blue-600 mb-4">Mina Blockchain Blocks</h1>
+         ${Belt.Array.length(blocks) == 0
+           ? `<p class="text-red-600">Failed to load blocks</p>`
+           : `<ul>${renderBlocks(blocks)}</ul>`}
        </div>`,
     )
   | None => Console.error("Error: Element with id 'app' not found")
